@@ -23,7 +23,6 @@ ensure_dir("uploads")
 ensure_dir("outputs")
 
 app = Flask(__name__)
-
 HTML_TEMPLATE = "deepar_filter.html"
 browser = None  # Global browser instance
 
@@ -65,12 +64,6 @@ async def run_deepar(input_path, filter_name, output_path):
     await asyncio.sleep(2)  # allow rendering
     await page.close()
 
-@app.before_first_request
-def startup():
-    """Initialize browser before first request."""
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(init_browser())
-
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({"status": "DeepAR API server running"})
@@ -96,5 +89,5 @@ def process_image():
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(init_browser())
+    loop.run_until_complete(init_browser())  # Launch browser at startup
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False, threaded=False)
