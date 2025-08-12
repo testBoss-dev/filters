@@ -12,8 +12,17 @@ load_dotenv()
 DEEPar_LICENSE_KEY = os.getenv("DEEPar_LICENSE_KEY", "your-license-key-here")
 
 # Ensure directories exist
-os.makedirs("uploads", exist_ok=True)
-os.makedirs("outputs", exist_ok=True)
+def ensure_dir(path):
+    if os.path.exists(path):
+        if not os.path.isdir(path):
+            os.remove(path)  # remove file with same name
+            os.makedirs(path)
+    else:
+        os.makedirs(path)
+
+ensure_dir("uploads")
+ensure_dir("outputs")
+
 
 app = Flask(__name__)
 
