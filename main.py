@@ -1,3 +1,4 @@
+# app.py (Corrected)
 import os
 import uuid
 import asyncio
@@ -6,21 +7,11 @@ from flask import Flask, request, jsonify, send_file
 from dotenv import load_dotenv
 from pyppeteer import launch
 
-# Load environment variables
 load_dotenv()
-DEEPar_LICENSE_KEY = os.getenv("DEEPar_LICENSE_KEY", "your-license-key-here")
 
-# Ensure safe directory creation
-def ensure_dir(path):
-    if os.path.exists(path):
-        if not os.path.isdir(path):
-            os.remove(path)
-            os.makedirs(path)
-    else:
-        os.makedirs(path)
-
-ensure_dir("uploads")
-ensure_dir("outputs")
+# Simplified and safer directory creation
+os.makedirs("uploads", exist_ok=True)
+os.makedirs("outputs", exist_ok=True)
 
 app = Flask(__name__)
 HTML_TEMPLATE = "deepar_filter.html"
@@ -30,6 +21,7 @@ async def init_browser():
     """Launch Pyppeteer browser once at startup."""
     global browser
     if browser is None:
+        print("Launching headless browser...")
         browser = await launch(
             headless=True,
             args=[
@@ -39,35 +31,42 @@ async def init_browser():
                 "--disable-dev-shm-usage"
             ]
         )
+        print("Browser launched.")
 
-async def run_deepar(input_path, filter_name, output_path):
-    """Runs DeepAR filter inside preloaded browser."""
+# MODIFIED FUNCTION
+async def run_deepar(image_data_url, filter_name, output_path):
+    """Runs DeepAR filter using a Base64 data URL."""
     page = await browser.newPage()
-
-    # Function to save image from JS
-    async def node_save_image(data_url):
+    
+    # This function allows JS to send the final image back to Python
+    async def save_processed_image(data_url):
         header, encoded = data_url.split(",", 1)
         data = base64.b64decode(encoded)
         with open(output_path, "wb") as f:
             f.write(data)
 
-    await page.exposeFunction("nodeSaveImage", node_save_image)
-
-    # Load HTML template
+    await page.exposeFunction("saveProcessedImage", save_processed_image)
+    
+    # Load the local HTML template
     await page.goto(f"file://{os.path.abspath(HTML_TEMPLATE)}")
 
-    # Call JS function
+    # Call the JS function with the image data URL
     await page.evaluate(
-        f'applyDeepARFilter("{os.path.abspath(input_path)}", "{filter_name}")'
+        f'applyDeepARFilter("{image_data_url}", "{filter_name}")'
     )
-
-    await asyncio.sleep(2)  # allow rendering
+    
+    # Wait for the processing to complete (you may need to adjust this)
+    # A better way would be to wait for the save_processed_image function to be called.
+    # For now, a sleep will work for debugging.
+    await asyncio.sleep(5) 
     await page.close()
+
 
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({"status": "DeepAR API server running"})
 
+# MODIFIED ROUTE
 @app.route("/process", methods=["POST"])
 def process_image():
     if "image" not in request.files:
@@ -76,18 +75,29 @@ def process_image():
     filter_name = request.form.get("filter", "hair")
     image_file = request.files["image"]
 
-    input_path = os.path.join("uploads", f"{uuid.uuid4()}.jpg")
+    # Read image into memory and encode as Base64 Data URL
+    image_bytes = image_file.read()
+    encoded_string = base64.b64encode(image_bytes).decode('utf-8')
+    mime_type = image_file.mimetype
+    image_data_url = f"data:{mime_type};base64,{encoded_string}"
+    
     output_path = os.path.join("outputs", f"{uuid.uuid4()}.png")
-    image_file.save(input_path)
 
     try:
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(run_deepar(input_path, filter_name, output_path))
-        return send_file(output_path, mimetype="image/png")
+        # Pass the data URL, not a file path
+        loop.run_until_complete(run_deepar(image_data_url, filter_name, output_path))
+        
+        if os.path.exists(output_path):
+            return send_file(output_path, mimetype="image/png")
+        else:
+            return jsonify({"error": "Processing failed, output file not created."}), 500
+            
     except Exception as e:
+        print(f"Error during processing: {e}") # Log the actual error on the server
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(init_browser())  # Launch browser at startup
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False, threaded=False)
+    loop.run_until_complete(init_browser())
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 8080)), debug=False)
