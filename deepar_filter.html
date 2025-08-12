@@ -1,69 +1,46 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>DeepAR Filter Processor</title>
-    <script src="https://cdn.deepar.ai/js/deepar.js"></script>
-    <style>
-      body {
-        margin: 0;
-        background: black;
-        overflow: hidden;
-      }
-      canvas {
-        display: block;
-      }
-    </style>
-  </head>
-  <body>
-    <canvas id="deepar-canvas"></canvas>
+<head>
+  <meta charset="UTF-8" />
+  <title>DeepAR Filter Processor</title>
+  <script src="https://cdn.deepar.ai/js/deepar.js"></script>
+  <style>
+    body { margin: 0; background: black; overflow: hidden; }
+    canvas { display: block; }
+  </style>
+</head>
+<body>
+  <canvas id="deepar-canvas"></canvas>
+  <script>
+    async function applyDeepARFilter(inputPath, filterName) {
+      const canvas = document.getElementById("deepar-canvas");
+      const deepAR = await deepar.initialize({
+        licenseKey: "d9d76c4291a877dfd04c83997cfe75f64e799ae46d3b85acbccf07efb1f1bd6693d01aa488cef941", // Replace with env key in HTML dynamically if needed
+        canvas: canvas,
+        rootPath: "https://cdn.deepar.ai/js/",
+      });
 
-    <script>
-      async function applyDeepARFilter(inputPath, filterName) {
-        const canvas = document.getElementById("deepar-canvas");
+      const filterMap = {
+        hair: "https://cdn.deepar.ai/filters/hair.deepar",
+        beard: "https://cdn.deepar.ai/filters/beard.deepar",
+        bald: "https://cdn.deepar.ai/filters/bald.deepar",
+      };
 
-        // Initialize DeepAR
-        const deepAR = await deepar.initialize({
-          licenseKey: "d9d76c4291a877dfd04c83997cfe75f64e799ae46d3b85acbccf07efb1f1bd6693d01aa488cef941", // replace with your own
-          canvas: canvas,
-          rootPath: "https://cdn.deepar.ai/js/",
-        });
+      await deepAR.loadEffect(filterMap[filterName] || filterMap["hair"]);
 
-        // Filter map
-        const filterMap = {
-          hair: "https://cdn.deepar.ai/filters/hair.deepar",
-          beard: "https://cdn.deepar.ai/filters/beard.deepar",
-          bald: "https://cdn.deepar.ai/filters/bald.deepar",
-        };
+      const img = new Image();
+      img.src = "file://" + inputPath;
+      await new Promise(res => { img.onload = res; });
 
-        // Load the effect
-        await deepAR.loadEffect(filterMap[filterName] || filterMap["hair"]);
+      deepAR.switchEffect(0, "slot", filterMap[filterName] || filterMap["hair"]);
+      deepAR.processImage(img);
 
-        // Load uploaded image (Pyppeteer local file access)
-        const img = new Image();
-        img.src = "file://" + inputPath;
-        await new Promise((res) => {
-          img.onload = res;
-        });
+      await new Promise(r => setTimeout(r, 1000));
+      const dataURL = canvas.toDataURL("image/png");
+      await window.nodeSaveImage(dataURL);
 
-        // Apply effect
-        deepAR.switchEffect(
-          0,
-          "slot",
-          filterMap[filterName] || filterMap["hair"]
-        );
-        deepAR.processImage(img);
-
-        // Wait for rendering
-        await new Promise((r) => setTimeout(r, 1000));
-
-        // Send back image data to Python
-        const dataURL = canvas.toDataURL("image/png");
-        await window.nodeSaveImage(dataURL);
-
-        // Cleanup
-        await deepAR.shutdown();
-      }
-    </script>
-  </body>
+      await deepAR.shutdown();
+    }
+  </script>
+</body>
 </html>
