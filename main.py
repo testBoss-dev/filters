@@ -1,67 +1,64 @@
+from flask import Flask, request, jsonify, send_file
+import requests
 import os
-import asyncio
 import uuid
-import base64
-from flask import Flask, request, send_file
-from pyppeteer import launch
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
+
+DEEPar_API_URL = "https://api.deepar.ai/v1/process"  # Example endpoint, adjust if needed
+DEEPar_LICENSE_KEY = os.getenv("DEEPAR_LICENSE_KEY")  # Store in Railway environment variables
+
+# Ensure uploads & outputs directory exists
+os.makedirs("uploads", exist_ok=True)
+os.makedirs("outputs", exist_ok=True)
 
 app = Flask(__name__)
 
-# ================== Function to Save Image ==================
-def save_image(data_url, output_path):
-    header, encoded = data_url.split(",", 1)
-    data = base64.b64decode(encoded)
-    with open(output_path, "wb") as f:
-        f.write(data)
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"status": "DeepAR API server running"})
 
-# ================== DeepAR Processing ==================
-async def run_deepar(input_path, output_path, filter_name):
-    browser = await launch(
-        headless=True,
-        args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-    )
-    page = await browser.newPage()
-
-    # Expose Python save function to JS
-    await page.exposeFunction("nodeSaveImage", lambda data_url: save_image(data_url, output_path))
-
-    # Load DeepAR HTML template
-    await page.goto(f"file://{os.getcwd()}/deepar_filter.html")
-
-    # Run JS function inside HTML to apply filter
-    await page.evaluate(f"""
-        applyDeepARFilter("{input_path}", "{filter_name}")
-            .then(dataUrl => nodeSaveImage(dataUrl));
-    """)
-
-    await browser.close()
-
-# ================== API Endpoint ==================
-@app.route("/apply-filter", methods=["POST"])
-def apply_filter():
+@app.route("/process", methods=["POST"])
+def process_image():
     if "image" not in request.files:
-        return {"error": "No image uploaded"}, 400
+        return jsonify({"error": "No image file provided"}), 400
 
     image_file = request.files["image"]
-    filter_name = request.form.get("filter", "hair")  # default filter
+    filter_name = request.form.get("filter", "default_filter")  # Pass filter name in request
+    image_path = os.path.join("uploads", f"{uuid.uuid4()}.jpg")
+    image_file.save(image_path)
 
-    # Ensure directories exist
-    os.makedirs("uploads", exist_ok=True)
-    os.makedirs("outputs", exist_ok=True)
+    # Send request to DeepAR Web API
+    try:
+        with open(image_path, "rb") as img:
+            response = requests.post(
+                DEEPar_API_URL,
+                headers={
+                    "x-api-key": DEEPar_LICENSE_KEY
+                },
+                data={
+                    "effect": filter_name
+                },
+                files={
+                    "image": img
+                }
+            )
 
-    # Save uploaded file
-    filename = f"{uuid.uuid4()}.png"
-    input_path = os.path.abspath(os.path.join("uploads", filename))
-    output_path = os.path.abspath(os.path.join("outputs", filename))
-    image_file.save(input_path)
+        if response.status_code != 200:
+            return jsonify({"error": "DeepAR API error", "details": response.text}), 500
 
-    # Process with DeepAR
-    asyncio.get_event_loop().run_until_complete(
-        run_deepar(input_path, output_path, filter_name)
-    )
+        # Save processed image
+        output_path = os.path.join("outputs", f"{uuid.uuid4()}.jpg")
+        with open(output_path, "wb") as out:
+            out.write(response.content)
 
-    return send_file(output_path, mimetype="image/png")
+        return send_file(output_path, mimetype="image/jpeg")
 
-# ================== Run Server ==================
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
