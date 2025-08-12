@@ -1,21 +1,20 @@
 import os
 import uuid
 import asyncio
+import base64
 from flask import Flask, request, jsonify, send_file
 from dotenv import load_dotenv
 from pyppeteer import launch
-import base64
 
-# Load .env
+# Load environment variables
 load_dotenv()
-
 DEEPar_LICENSE_KEY = os.getenv("DEEPar_LICENSE_KEY", "your-license-key-here")
 
-# Ensure directories exist safely
+# Ensure safe directory creation
 def ensure_dir(path):
     if os.path.exists(path):
         if not os.path.isdir(path):
-            os.remove(path)  # remove file with same name
+            os.remove(path)
             os.makedirs(path)
     else:
         os.makedirs(path)
@@ -26,48 +25,51 @@ ensure_dir("outputs")
 app = Flask(__name__)
 
 HTML_TEMPLATE = "deepar_filter.html"
+browser = None  # Global browser instance
+
+async def init_browser():
+    """Launch Pyppeteer browser once at startup."""
+    global browser
+    if browser is None:
+        browser = await launch(
+            headless=True,
+            args=[
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-gpu",
+                "--disable-dev-shm-usage"
+            ]
+        )
 
 async def run_deepar(input_path, filter_name, output_path):
-    browser = await launch(
-        headless=True,
-        args=[
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-gpu",
-            "--disable-dev-shm-usage"
-        ]
-    )
+    """Runs DeepAR filter inside preloaded browser."""
     page = await browser.newPage()
 
-    # Expose a function to save image from JS
+    # Function to save image from JS
     async def node_save_image(data_url):
         header, encoded = data_url.split(",", 1)
         data = base64.b64decode(encoded)
         with open(output_path, "wb") as f:
             f.write(data)
+
     await page.exposeFunction("nodeSaveImage", node_save_image)
 
     # Load HTML template
     await page.goto(f"file://{os.path.abspath(HTML_TEMPLATE)}")
 
-    # Call JS function in HTML to process image
+    # Call JS function
     await page.evaluate(
         f'applyDeepARFilter("{os.path.abspath(input_path)}", "{filter_name}")'
     )
 
-    await asyncio.sleep(2)  # allow rendering time
-    await browser.close()
+    await asyncio.sleep(2)  # allow rendering
+    await page.close()
 
-def run_async_task(task):
-    """
-    Runs an async task safely inside a Flask thread by creating a new event loop if needed.
-    """
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(task)
+@app.before_first_request
+def startup():
+    """Initialize browser before first request."""
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(init_browser())
 
 @app.route("/", methods=["GET"])
 def home():
@@ -86,11 +88,13 @@ def process_image():
     image_file.save(input_path)
 
     try:
-        run_async_task(run_deepar(input_path, filter_name, output_path))
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(run_deepar(input_path, filter_name, output_path))
         return send_file(output_path, mimetype="image/png")
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False, threaded=False)
-
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(init_browser())
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=False, threaded=False)
