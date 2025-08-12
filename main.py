@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 # Load environment variables from .env
 load_dotenv()
 
-DEEPar_API_URL = "https://api.deepar.ai/v1/process"  # Example endpoint, adjust if needed
-DEEPar_LICENSE_KEY = os.getenv("DEEPAR_LICENSE_KEY")  # Store in Railway environment variables
+DEEPar_API_URL = "https://filters-production.up.railway.app"  # Example endpoint, adjust if needed
+DEEPar_LICENSE_KEY = os.getenv("d9d76c4291a877dfd04c83997cfe75f64e799ae46d3b85acbccf07efb1f1bd6693d01aa488cef941")  # Store in Railway environment variables
 
 # Ensure uploads & outputs directory exists
 os.makedirs("uploads", exist_ok=True)
