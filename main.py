@@ -11,7 +11,7 @@ load_dotenv()
 
 DEEPar_LICENSE_KEY = os.getenv("DEEPar_LICENSE_KEY", "your-license-key-here")
 
-# Ensure directories exist
+# Ensure directories exist safely
 def ensure_dir(path):
     if os.path.exists(path):
         if not os.path.isdir(path):
@@ -22,7 +22,6 @@ def ensure_dir(path):
 
 ensure_dir("uploads")
 ensure_dir("outputs")
-
 
 app = Flask(__name__)
 
@@ -40,7 +39,7 @@ async def run_deepar(input_path, filter_name, output_path):
     )
     page = await browser.newPage()
 
-    # Expose a function to save image
+    # Expose a function to save image from JS
     async def node_save_image(data_url):
         header, encoded = data_url.split(",", 1)
         data = base64.b64decode(encoded)
@@ -48,11 +47,13 @@ async def run_deepar(input_path, filter_name, output_path):
             f.write(data)
     await page.exposeFunction("nodeSaveImage", node_save_image)
 
-    # Load HTML
+    # Load HTML template
     await page.goto(f"file://{os.path.abspath(HTML_TEMPLATE)}")
 
-    # Call JS function in HTML
-    await page.evaluate(f'applyDeepARFilter("{os.path.abspath(input_path)}", "{filter_name}")')
+    # Call JS function in HTML to process image
+    await page.evaluate(
+        f'applyDeepARFilter("{os.path.abspath(input_path)}", "{filter_name}")'
+    )
 
     await asyncio.sleep(2)  # allow rendering time
     await browser.close()
@@ -74,9 +75,12 @@ def process_image():
     image_file.save(input_path)
 
     try:
-        asyncio.get_event_loop().run_until_complete(
-            run_deepar(input_path, filter_name, output_path)
-        )
+        # Create a new event loop for this thread (fix for Thread-1 crash)
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(run_deepar(input_path, filter_name, output_path))
+        loop.close()
+
         return send_file(output_path, mimetype="image/png")
     except Exception as e:
         return jsonify({"error": str(e)}), 500
