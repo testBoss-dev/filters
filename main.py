@@ -1,4 +1,3 @@
-# app.py (Corrected)
 import os
 import uuid
 import asyncio
@@ -9,9 +8,17 @@ from pyppeteer import launch
 
 load_dotenv()
 
-# Simplified and safer directory creation
-os.makedirs("uploads", exist_ok=True)
-os.makedirs("outputs", exist_ok=True)
+# Safe directory creation: if 'uploads' or 'outputs' exist as files, remove them first
+def ensure_dir(path):
+    if os.path.exists(path):
+        if not os.path.isdir(path):
+            os.remove(path)  # remove file with same name
+            os.makedirs(path)
+    else:
+        os.makedirs(path)
+
+ensure_dir("uploads")
+ensure_dir("outputs")
 
 app = Flask(__name__)
 HTML_TEMPLATE = "deepar_filter.html"
@@ -33,9 +40,8 @@ async def init_browser():
         )
         print("Browser launched.")
 
-# MODIFIED FUNCTION
+# Runs DeepAR filter using a Base64 data URL.
 async def run_deepar(image_data_url, filter_name, output_path):
-    """Runs DeepAR filter using a Base64 data URL."""
     page = await browser.newPage()
     
     # This function allows JS to send the final image back to Python
@@ -55,18 +61,14 @@ async def run_deepar(image_data_url, filter_name, output_path):
         f'applyDeepARFilter("{image_data_url}", "{filter_name}")'
     )
     
-    # Wait for the processing to complete (you may need to adjust this)
-    # A better way would be to wait for the save_processed_image function to be called.
-    # For now, a sleep will work for debugging.
+    # Wait for the processing to complete
     await asyncio.sleep(5) 
     await page.close()
-
 
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({"status": "DeepAR API server running"})
 
-# MODIFIED ROUTE
 @app.route("/process", methods=["POST"])
 def process_image():
     if "image" not in request.files:
