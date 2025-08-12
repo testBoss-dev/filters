@@ -1,0 +1,99 @@
+need to be updated
+
+✅ Give you a downloadable zip with the full code above
+🛠️ Or help you integrate OpenCV face alignment next
+📦 Or prepare the Dockerfile to deploy this on Railway?
+
+Let me know your next move.\\
+
+
+
+pip install -r requirements.txt
+  command for installing the requirements \\\\\\\\\\\\\\\\\\\\
+
+
+  full process
+
+  ✅ STEP 1: Navigate to Your Project Folder
+In PowerShell:
+
+powershell
+Copy
+Edit
+cd "C:\Users\shubh\OneDrive\Documents\GitHub\ar-3d-backend"
+✅ STEP 2: Create a Virtual Environment (Recommended)
+bash
+Copy
+Edit
+python -m venv venv
+Activate it:
+
+For PowerShell:
+
+powershell
+Copy
+Edit
+.\venv\Scripts\Activate
+You should now see (venv) prefix in your terminal — this means you're inside the virtual environment.
+
+✅ STEP 3: Create or Download requirements.txt
+Here's a minimal requirements.txt you can use for the Blender-based AR API:
+
+txt
+Copy
+Edit
+fastapi
+uvicorn
+python-multipart
+Create it by running:
+
+powershell
+Copy
+Edit
+notepad requirements.txt
+Paste the above content and save the file.
+
+✅ STEP 4: Install All Requirements
+bash
+Copy
+Edit
+pip install -r requirements.txt
+✅ STEP 5: Run the API Server
+Now run the FastAPI server:
+
+bash
+Copy
+Edit
+uvicorn main:app --reload
+If your file is named something else (like app.py instead of main.py), adjust accordingly:
+
+bash
+Copy
+Edit
+uvicorn app:app --reload
+
+
+
+
+# type: ignore
+
+
+
+i am trying to fix this issye unyil i am grinding helpp mee
+
+exam prep 
+again exam prip repo commit for maintaining streak 
+Tommrow i will start prepraing for Google IT support Free version
+hello i am working on this and find a good idea that we can search for api on github. 
+It can work very fine if it done,,,,
+
+attendance for today 5 julyy...
+studying autometa preparing for exam
+
+attendance today 6 julyy...
+today attendance 7th july 
+today attendance 8th july 
+today attendance 9th july network ppr kl
+today last attendance 10th july kl se i have to do work...
+i can do it 
+i am here to start again 
