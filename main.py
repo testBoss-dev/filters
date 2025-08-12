@@ -58,6 +58,17 @@ async def run_deepar(input_path, filter_name, output_path):
     await asyncio.sleep(2)  # allow rendering time
     await browser.close()
 
+def run_async_task(task):
+    """
+    Runs an async task safely inside a Flask thread by creating a new event loop if needed.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    return loop.run_until_complete(task)
+
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({"status": "DeepAR API server running"})
@@ -75,12 +86,7 @@ def process_image():
     image_file.save(input_path)
 
     try:
-        # Create a new event loop for this thread (fix for Thread-1 crash)
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(run_deepar(input_path, filter_name, output_path))
-        loop.close()
-
+        run_async_task(run_deepar(input_path, filter_name, output_path))
         return send_file(output_path, mimetype="image/png")
     except Exception as e:
         return jsonify({"error": str(e)}), 500
