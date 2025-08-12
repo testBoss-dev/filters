@@ -6,40 +6,65 @@
   <script src="https://cdn.deepar.ai/js/deepar.js"></script>
   <style>
     body { margin: 0; background: black; overflow: hidden; }
-    canvas { display: block; }
+    canvas { display: none; } /* Hide canvas as it's for offscreen rendering */
   </style>
 </head>
 <body>
   <canvas id="deepar-canvas"></canvas>
   <script>
-    async function applyDeepARFilter(inputPath, filterName) {
-      const canvas = document.getElementById("deepar-canvas");
-      const deepAR = await deepar.initialize({
-        licenseKey: "d9d76c4291a877dfd04c83997cfe75f64e799ae46d3b85acbccf07efb1f1bd6693d01aa488cef941", // Replace with env key in HTML dynamically if needed
-        canvas: canvas,
-        rootPath: "https://cdn.deepar.ai/js/",
-      });
+    // MODIFIED FUNCTION
+    async function applyDeepARFilter(imageDataURL, filterName) {
+      try {
+        const canvas = document.getElementById("deepar-canvas");
+        const deepAR = await deepar.initialize({
+          licenseKey: "d9d76c4291a877dfd04c83997cfe75f64e799ae46d3b85acbccf07efb1f1bd6693d01aa488cef941",
+          canvas: canvas,
+          rootPath: "https://cdn.deepar.ai/js/",
+          // Tell DeepAR we are processing an image, not a live camera feed
+          effect: 'assets/fire', // A placeholder effect is needed on init
+        });
 
-      const filterMap = {
-        hair: "https://cdn.deepar.ai/filters/hair.deepar",
-        beard: "https://cdn.deepar.ai/filters/beard.deepar",
-        bald: "https://cdn.deepar.ai/filters/bald.deepar",
-      };
+        const filterMap = {
+          hair: "https://cdn.deepar.ai/filters/hair.deepar",
+          beard: "https://cdn.deepar.ai/filters/beard.deepar",
+          bald: "https://cdn.deepar.ai/filters/bald.deepar",
+        };
+        const filterPath = filterMap[filterName] || filterMap["hair"];
+        
+        const img = new Image();
+        // The onload promise
+        const imageLoadPromise = new Promise(resolve => {
+            img.onload = resolve;
+        });
+        
+        // Set the src to the Data URL passed from Python
+        img.src = imageDataURL;
+        
+        // Wait for the image to be fully loaded into memory
+        await imageLoadPromise;
+        
+        // Set canvas size to match the image
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Now load the actual effect and process the image
+        await deepAR.switchEffect(0, 'slot', filterPath);
+        deepAR.processImage(img);
+        
+        // Give it a moment to render the effect
+        await new Promise(r => setTimeout(r, 1000));
+        
+        const dataURL = canvas.toDataURL("image/png");
+        
+        // Call the function exposed from Python to save the file
+        await window.saveProcessedImage(dataURL);
+        
+        await deepAR.shutdown();
 
-      await deepAR.loadEffect(filterMap[filterName] || filterMap["hair"]);
-
-      const img = new Image();
-      img.src = "file://" + inputPath;
-      await new Promise(res => { img.onload = res; });
-
-      deepAR.switchEffect(0, "slot", filterMap[filterName] || filterMap["hair"]);
-      deepAR.processImage(img);
-
-      await new Promise(r => setTimeout(r, 1000));
-      const dataURL = canvas.toDataURL("image/png");
-      await window.nodeSaveImage(dataURL);
-
-      await deepAR.shutdown();
+      } catch (error) {
+        console.error("DeepAR JavaScript Error:", error);
+        // You can also expose a function to report errors back to Python
+      }
     }
   </script>
 </body>
