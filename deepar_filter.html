@@ -19,33 +19,34 @@
     <canvas id="deepar-canvas"></canvas>
 
     <script>
-      async function applyDeepARFilter(inputPath, outputPath, filterName) {
+      async function applyDeepARFilter(inputPath, filterName) {
         const canvas = document.getElementById("deepar-canvas");
 
+        // Initialize DeepAR
         const deepAR = await deepar.initialize({
-          licenseKey:
-            "b58cd8a6a15ed5a6585f5b114db2b67fc7c0143987479fd1dbedc80c4975b2d4998df6e6c830b0c0", // <-- Replace with your key
+          licenseKey: "d9d76c4291a877dfd04c83997cfe75f64e799ae46d3b85acbccf07efb1f1bd6693d01aa488cef941", // replace with your own
           canvas: canvas,
           rootPath: "https://cdn.deepar.ai/js/",
         });
 
-        // Load effect based on filter name
-        let filterMap = {
+        // Filter map
+        const filterMap = {
           hair: "https://cdn.deepar.ai/filters/hair.deepar",
           beard: "https://cdn.deepar.ai/filters/beard.deepar",
           bald: "https://cdn.deepar.ai/filters/bald.deepar",
         };
 
+        // Load the effect
         await deepAR.loadEffect(filterMap[filterName] || filterMap["hair"]);
 
-        // Load the uploaded image
+        // Load uploaded image (Pyppeteer local file access)
         const img = new Image();
         img.src = "file://" + inputPath;
         await new Promise((res) => {
           img.onload = res;
         });
 
-        // Draw image to DeepAR canvas
+        // Apply effect
         deepAR.switchEffect(
           0,
           "slot",
@@ -53,13 +54,14 @@
         );
         deepAR.processImage(img);
 
-        // Wait a moment for rendering
+        // Wait for rendering
         await new Promise((r) => setTimeout(r, 1000));
 
-        // Save processed image
+        // Send back image data to Python
         const dataURL = canvas.toDataURL("image/png");
-        await window.nodeSaveImage(dataURL, outputPath);
+        await window.nodeSaveImage(dataURL);
 
+        // Cleanup
         await deepAR.shutdown();
       }
     </script>
